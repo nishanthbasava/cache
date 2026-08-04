@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Gowun_Batang, Raleway } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next"
+
 
 const gowunBatang = Gowun_Batang({
   variable: "--font-gowun-batang",
