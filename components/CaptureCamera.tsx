@@ -7,7 +7,10 @@ export default function CaptureCamera() {
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [pdfFile, setPdfFile] = useState<{ name: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
 
@@ -119,6 +122,19 @@ export default function CaptureCamera() {
     startCamera();
   }
 
+  function handlePdfUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (pdfFile) {
+      URL.revokeObjectURL(pdfFile.url);
+    }
+
+    setPdfFile({ name: file.name, url: URL.createObjectURL(file) });
+    setError(null);
+    event.target.value = "";
+  }
+
   function clearPhoto() {
     if (photoUrl) {
       URL.revokeObjectURL(photoUrl);
@@ -127,17 +143,27 @@ export default function CaptureCamera() {
     setPhotoUrl(null);
   }
 
+  function clearPdf() {
+    if (pdfFile) {
+      URL.revokeObjectURL(pdfFile.url);
+    }
+
+    setPdfFile(null);
+  }
+
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => {
         track.stop();
       });
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      if (pdfFile) URL.revokeObjectURL(pdfFile.url);
     };
   }, []);
 
   return (
     <section className="flex flex-col gap-4">
-      {!cameraActive && !photoUrl && (
+      {!cameraActive && !photoUrl && !pdfFile && (
         <div className="flex flex-col gap-3">
           <button
             type="button"
@@ -155,11 +181,27 @@ export default function CaptureCamera() {
             Upload photo
           </button>
 
+          <button
+            type="button"
+            onClick={() => pdfInputRef.current?.click()}
+            className="rounded-lg border px-4 py-3"
+          >
+            Upload PDF
+          </button>
+
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
             onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          <input
+            ref={pdfInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handlePdfUpload}
             className="hidden"
           />
         </div>
@@ -218,6 +260,23 @@ export default function CaptureCamera() {
               Clear
             </button>
           </div>
+        </>
+      )}
+
+      {pdfFile && (
+        <>
+          <div className="flex items-center gap-3 rounded-xl border p-4">
+            <span className="text-2xl">PDF</span>
+            <span className="min-w-0 flex-1 truncate text-sm">{pdfFile.name}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={clearPdf}
+            className="rounded-lg border px-4 py-3"
+          >
+            Clear
+          </button>
         </>
       )}
 

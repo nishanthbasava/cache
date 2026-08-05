@@ -130,6 +130,21 @@ export default function SignUpForm() {
           {mode === "sign-up" ? "Log in" : "Sign up"}
         </button>
       </p>
+
+      <div className="relative flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center">
+          <div className="w-full border-t" />
+        </div>
+        <span className="relative bg-background px-2 text-xs text-muted-foreground">or</span>
+      </div>
+
+      <button
+        type="button"
+        className="h-11 w-full rounded-lg border text-sm font-medium hover:bg-muted"
+        onClick={() => router.push("/capture")}
+      >
+        Demo
+      </button>
     </form>
   );
 }
