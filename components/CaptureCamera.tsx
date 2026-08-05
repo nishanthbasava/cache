@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 export default function CaptureCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +95,21 @@ export default function CaptureCamera() {
     );
   }
 
+  function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (photoUrl) {
+      URL.revokeObjectURL(photoUrl);
+    }
+
+    setPhotoUrl(URL.createObjectURL(file));
+    setError(null);
+
+    // Reset so the same file can be re-selected
+    event.target.value = "";
+  }
+
   function retakePhoto() {
     if (photoUrl) {
       URL.revokeObjectURL(photoUrl);
@@ -101,6 +117,14 @@ export default function CaptureCamera() {
 
     setPhotoUrl(null);
     startCamera();
+  }
+
+  function clearPhoto() {
+    if (photoUrl) {
+      URL.revokeObjectURL(photoUrl);
+    }
+
+    setPhotoUrl(null);
   }
 
   useEffect(() => {
@@ -114,13 +138,31 @@ export default function CaptureCamera() {
   return (
     <section className="flex flex-col gap-4">
       {!cameraActive && !photoUrl && (
-        <button
-          type="button"
-          onClick={startCamera}
-          className="rounded-lg bg-primary px-4 py-3 text-primary-foreground"
-        >
-          Open camera
-        </button>
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={startCamera}
+            className="rounded-lg bg-primary px-4 py-3 text-primary-foreground"
+          >
+            Open camera
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg border px-4 py-3"
+          >
+            Upload photo
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+        </div>
       )}
 
       {cameraActive && (
@@ -159,13 +201,23 @@ export default function CaptureCamera() {
             className="aspect-[3/4] w-full rounded-xl object-cover"
           />
 
-          <button
-            type="button"
-            onClick={retakePhoto}
-            className="rounded-lg border px-4 py-3"
-          >
-            Retake
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={retakePhoto}
+              className="flex-1 rounded-lg border px-4 py-3"
+            >
+              Retake
+            </button>
+
+            <button
+              type="button"
+              onClick={clearPhoto}
+              className="flex-1 rounded-lg border px-4 py-3"
+            >
+              Clear
+            </button>
+          </div>
         </>
       )}
 
