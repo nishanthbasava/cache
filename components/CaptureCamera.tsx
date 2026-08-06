@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import type { Deck } from "@/lib/types";
 
 export default function CaptureCamera() {
   const router = useRouter();
@@ -11,7 +12,6 @@ export default function CaptureCamera() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
 
-  // Store the raw blob/file so we can upload it later
   const fileBlobRef = useRef<Blob | null>(null);
   const fileNameRef = useRef<string>("capture.jpg");
 
@@ -20,6 +20,29 @@ export default function CaptureCamera() {
   const [error, setError] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState<string>("");
+  const [loadingDecks, setLoadingDecks] = useState(true);
+
+  useEffect(() => {
+    async function fetchDecks() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("decks")
+          .select("*")
+          .order("created_at", { ascending: false });
+        setDecks(data ?? []);
+      } catch {
+        // Demo mode — no auth
+      } finally {
+        setLoadingDecks(false);
+      }
+    }
+
+    fetchDecks();
+  }, []);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -173,11 +196,15 @@ export default function CaptureCamera() {
     const blob = fileBlobRef.current;
     if (!blob) return;
 
+    if (!selectedDeckId) {
+      setError("Please select a folder.");
+      return;
+    }
+
     setProcessing(true);
     setError(null);
 
     try {
-      // Get user ID if authenticated
       let userId: string | null = null;
       try {
         const supabase = createClient();
@@ -192,6 +219,7 @@ export default function CaptureCamera() {
       if (userId) {
         formData.append("userId", userId);
       }
+      formData.append("deckId", selectedDeckId);
 
       const response = await fetch("/api/process", {
         method: "POST",
@@ -222,9 +250,49 @@ export default function CaptureCamera() {
     };
   }, []);
 
+  const hasFile = photoUrl || pdfFile;
+  const noDecks = !loadingDecks && decks.length === 0;
+
   return (
     <section className="flex flex-col gap-4">
-      {!cameraActive && !photoUrl && !pdfFile && (
+      {noDecks && (
+        <div className="rounded-xl border border-dashed p-4 text-center">
+          <p className="text-sm text-muted-foreground">
+            No folders yet. Go to{" "}
+            <button
+              type="button"
+              onClick={() => router.push("/study")}
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Study
+            </button>{" "}
+            to create one first.
+          </p>
+        </div>
+      )}
+
+      {!noDecks && hasFile && (
+        <div className="space-y-1">
+          <label className="text-sm font-medium" htmlFor="deck-select">
+            Folder
+          </label>
+          <select
+            id="deck-select"
+            value={selectedDeckId}
+            onChange={(e) => setSelectedDeckId(e.target.value)}
+            className="h-11 w-full rounded-lg border bg-background px-3 text-base outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="">Select a folder...</option>
+            {decks.map((deck) => (
+              <option key={deck.id} value={deck.id}>
+                {deck.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {!cameraActive && !photoUrl && !pdfFile && !noDecks && (
         <div className="flex flex-col gap-3">
           <button
             type="button"

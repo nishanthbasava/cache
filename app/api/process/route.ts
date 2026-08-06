@@ -6,6 +6,7 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const userId = formData.get("userId") as string | null;
+  const deckId = formData.get("deckId") as string | null;
 
   if (!file) {
     return Response.json({ error: "Missing file" }, { status: 400 });
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
         front: card.front,
         back: card.back,
         source_filename: file.name,
+        deck_id: deckId,
       }));
 
       const { error } = await supabase.from("flashcards").insert(rows);
