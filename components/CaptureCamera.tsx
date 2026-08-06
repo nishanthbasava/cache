@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Deck } from "@/lib/types";
+import type { CaptureMode } from "@/lib/flashcard-generator";
 
 export default function CaptureCamera() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function CaptureCamera() {
 
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>("");
+  const [captureMode, setCaptureMode] = useState<CaptureMode>("key-takeaways");
   const [loadingDecks, setLoadingDecks] = useState(true);
 
   useEffect(() => {
@@ -220,6 +222,7 @@ export default function CaptureCamera() {
         formData.append("userId", userId);
       }
       formData.append("deckId", selectedDeckId);
+      formData.append("mode", captureMode);
 
       const response = await fetch("/api/process", {
         method: "POST",
@@ -272,24 +275,42 @@ export default function CaptureCamera() {
       )}
 
       {!noDecks && hasFile && (
-        <div className="space-y-1">
-          <label className="text-sm font-medium" htmlFor="deck-select">
-            Folder
-          </label>
-          <select
-            id="deck-select"
-            value={selectedDeckId}
-            onChange={(e) => setSelectedDeckId(e.target.value)}
-            className="h-11 w-full rounded-lg border bg-background px-3 text-base outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <option value="">Select a folder...</option>
-            {decks.map((deck) => (
-              <option key={deck.id} value={deck.id}>
-                {deck.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <>
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="deck-select">
+              Folder
+            </label>
+            <select
+              id="deck-select"
+              value={selectedDeckId}
+              onChange={(e) => setSelectedDeckId(e.target.value)}
+              className="h-11 w-full rounded-lg border bg-background px-3 text-base outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value="">Select a folder...</option>
+              {decks.map((deck) => (
+                <option key={deck.id} value={deck.id}>
+                  {deck.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium" htmlFor="mode-select">
+              Capture mode
+            </label>
+            <select
+              id="mode-select"
+              value={captureMode}
+              onChange={(e) => setCaptureMode(e.target.value as CaptureMode)}
+              className="h-11 w-full rounded-lg border bg-background px-3 text-base outline-none transition-shadow focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <option value="deep-study">Deep study — detailed Q&A, many cards</option>
+              <option value="key-takeaways">Key takeaways — main ideas, 3-6 cards</option>
+              <option value="remember-this">Remember this — just the essence, 1-2 cards</option>
+            </select>
+          </div>
+        </>
       )}
 
       {!cameraActive && !photoUrl && !pdfFile && !noDecks && (

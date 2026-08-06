@@ -1,12 +1,16 @@
 import { extractText } from "@/lib/ocr";
-import { generateFlashcards } from "@/lib/flashcard-generator";
+import { generateFlashcards, type CaptureMode } from "@/lib/flashcard-generator";
 import { createServiceClient } from "@/lib/supabase/server";
+
+const VALID_MODES = new Set(["deep-study", "key-takeaways", "remember-this"]);
 
 export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
   const userId = formData.get("userId") as string | null;
   const deckId = formData.get("deckId") as string | null;
+  const rawMode = formData.get("mode") as string | null;
+  const mode: CaptureMode = rawMode && VALID_MODES.has(rawMode) ? (rawMode as CaptureMode) : "key-takeaways";
 
   if (!file) {
     return Response.json({ error: "Missing file" }, { status: 400 });
@@ -22,7 +26,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Generate flashcards via Claude
-    const cards = await generateFlashcards(extractedText);
+    const cards = await generateFlashcards(extractedText, mode);
 
     if (cards.length === 0) {
       return Response.json({ error: "No flashcards could be generated." }, { status: 422 });

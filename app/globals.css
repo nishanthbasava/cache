@@ -128,3 +128,65 @@
     @apply font-sans;
   }
 }
+
+/* Flashcard flip animation */
+.flashcard-perspective {
+  perspective: 1200px;
+}
+
+.flashcard-inner {
+  position: relative;
+  width: 100%;
+  min-height: 240px;
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-style: preserve-3d;
+}
+
+.flashcard-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flashcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+}
+
+/* Card carousel track */
+.flashcard-track-wrapper {
+  position: relative;
+}
+
+.flashcard-track {
+  display: flex;
+  width: 300%;
+  transform: translateX(-33.333%);
+  transition: none;
+}
+
+.flashcard-track.slide-next {
+  transform: translateX(-66.666%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flashcard-track.slide-prev {
+  transform: translateX(0%);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.flashcard-track-card {
+  width: 33.333%;
+  flex-shrink: 0;
+  padding: 0 4px;
+}

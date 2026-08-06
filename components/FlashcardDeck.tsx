@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import StudySession from "@/components/StudySession";
+import { fetchDeckDueCounts } from "@/lib/study";
+import type { QueueCounts } from "@/lib/scheduler";
 import type { Deck, Flashcard } from "@/lib/types";
 
 export default function FlashcardDeck() {
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [dueCounts, setDueCounts] = useState<Record<string, QueueCounts>>({});
+  const [studyDeck, setStudyDeck] = useState<Deck | null>(null);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -13,6 +18,10 @@ export default function FlashcardDeck() {
   const [loading, setLoading] = useState(true);
   const [newDeckName, setNewDeckName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<"left" | "right" | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const [displayIndex, setDisplayIndex] = useState(0);
+  const nextIndexRef = useRef<number>(0);
 
   useEffect(() => {
     fetchDecks();
@@ -25,7 +34,15 @@ export default function FlashcardDeck() {
         .from("decks")
         .select("*")
         .order("created_at", { ascending: false });
-      setDecks(data ?? []);
+      const list = data ?? [];
+      setDecks(list);
+
+      try {
+        setDueCounts(await fetchDeckDueCounts(list));
+      } catch (err) {
+        // The deck list still works without badges if the migration hasn't run.
+        console.error("Failed to compute due counts:", err);
+      }
     } catch (err) {
       console.error("Failed to fetch decks:", err);
     } finally {
@@ -81,6 +98,19 @@ export default function FlashcardDeck() {
     return <p className="text-center text-sm text-muted-foreground">Loading...</p>;
   }
 
+  // Spaced repetition session
+  if (studyDeck) {
+    return (
+      <StudySession
+        deck={studyDeck}
+        onExit={() => {
+          setStudyDeck(null);
+          void fetchDecks();
+        }}
+      />
+    );
+  }
+
   // Viewing a deck's flashcards
   if (selectedDeck) {
     if (cards.length === 0) {
@@ -100,7 +130,30 @@ export default function FlashcardDeck() {
       );
     }
 
-    const card = cards[currentIndex];
+    function navigateCard(direction: "left" | "right") {
+      if (animating) return;
+
+      const nextIdx =
+        direction === "right"
+          ? (currentIndex + 1) % cards.length
+          : (currentIndex - 1 + cards.length) % cards.length;
+
+      nextIndexRef.current = nextIdx;
+      setDisplayIndex(currentIndex);
+      setFlipped(false);
+      setSlideDirection(direction);
+      setAnimating(true);
+    }
+
+    function handleTransitionEnd() {
+      setCurrentIndex(nextIndexRef.current);
+      setDisplayIndex(nextIndexRef.current);
+      setSlideDirection(null);
+      setAnimating(false);
+    }
+
+    const card = cards[animating ? displayIndex : currentIndex];
+    const nextCard = animating ? cards[nextIndexRef.current] : null;
 
     return (
       <div className="flex flex-col gap-4">
@@ -118,16 +171,79 @@ export default function FlashcardDeck() {
           Card {currentIndex + 1} of {cards.length}
         </p>
 
-        <button
-          type="button"
-          onClick={() => setFlipped(!flipped)}
-          className="min-h-[200px] rounded-xl border p-6 text-left transition-colors hover:bg-muted/50"
-        >
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {flipped ? "Answer" : "Question"}
-          </p>
-          <p className="text-lg">{flipped ? card.back : card.front}</p>
-        </button>
+        <div className="flashcard-track-wrapper overflow-hidden">
+          <div
+            className={`flashcard-track ${
+              slideDirection === "right"
+                ? "slide-next"
+                : slideDirection === "left"
+                  ? "slide-prev"
+                  : ""
+            }`}
+            onTransitionEnd={handleTransitionEnd}
+          >
+            {/* Previous card (off-screen left) */}
+            <div className="flashcard-track-card" aria-hidden>
+              {nextCard && slideDirection === "left" && (
+                <div className="flashcard-perspective">
+                  <div className="flashcard-inner">
+                    <div className="flashcard-face bg-card">
+                      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Question
+                      </p>
+                      <p className="text-lg leading-relaxed">{nextCard.front}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Current card (visible) */}
+            <div
+              className="flashcard-track-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => !animating && setFlipped(!flipped)}
+              onKeyDown={(e) => {
+                if (e.key === " " || e.key === "Enter") !animating && setFlipped(!flipped);
+              }}
+            >
+              <div className="flashcard-perspective cursor-pointer select-none">
+                <div className={`flashcard-inner ${flipped ? "flipped" : ""}`}>
+                  <div className="flashcard-face bg-card">
+                    <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Question
+                    </p>
+                    <p className="text-lg leading-relaxed">{card.front}</p>
+                  </div>
+
+                  <div className="flashcard-face flashcard-back bg-card">
+                    <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Answer
+                    </p>
+                    <p className="text-lg leading-relaxed">{card.back}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Next card (off-screen right) */}
+            <div className="flashcard-track-card" aria-hidden>
+              {nextCard && slideDirection === "right" && (
+                <div className="flashcard-perspective">
+                  <div className="flashcard-inner">
+                    <div className="flashcard-face bg-card">
+                      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Question
+                      </p>
+                      <p className="text-lg leading-relaxed">{nextCard.front}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         <p className="text-center text-xs text-muted-foreground">
           Tap card to flip
@@ -136,10 +252,8 @@ export default function FlashcardDeck() {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => {
-              setFlipped(false);
-              setCurrentIndex((i) => (i - 1 + cards.length) % cards.length);
-            }}
+            disabled={animating}
+            onClick={() => navigateCard("left")}
             className="flex-1 rounded-lg border px-4 py-3"
           >
             Previous
@@ -147,10 +261,8 @@ export default function FlashcardDeck() {
 
           <button
             type="button"
-            onClick={() => {
-              setFlipped(false);
-              setCurrentIndex((i) => (i + 1) % cards.length);
-            }}
+            disabled={animating}
+            onClick={() => navigateCard("right")}
             className="flex-1 rounded-lg border px-4 py-3"
           >
             Next
@@ -188,16 +300,43 @@ export default function FlashcardDeck() {
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {decks.map((deck) => (
-            <button
-              key={deck.id}
-              type="button"
-              onClick={() => openDeck(deck)}
-              className="rounded-xl border p-4 text-left transition-colors hover:bg-muted/50"
-            >
-              <p className="font-medium">{deck.name}</p>
-            </button>
-          ))}
+          {decks.map((deck) => {
+            const counts = dueCounts[deck.id];
+            return (
+              <div
+                key={deck.id}
+                className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted/50"
+              >
+                <button
+                  type="button"
+                  onClick={() => openDeck(deck)}
+                  className="flex-1 text-left"
+                >
+                  <p className="font-medium">{deck.name}</p>
+                  {counts && (
+                    <p className="mt-1 flex gap-3 text-xs tabular-nums">
+                      <span className="text-sky-600 dark:text-sky-400">{counts.new} new</span>
+                      <span className="text-red-600 dark:text-red-400">
+                        {counts.learning} learning
+                      </span>
+                      <span className="text-green-600 dark:text-green-400">
+                        {counts.review} to review
+                      </span>
+                    </p>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStudyDeck(deck)}
+                  disabled={counts?.total === 0}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
+                >
+                  Study
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
